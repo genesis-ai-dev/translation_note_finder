@@ -364,8 +364,8 @@ class ScriptureReference:
         return line_number
 
 
-# Example usage:
-reference = "1Jn 5:7-8"
-scripture_ref = ScriptureReference(reference)
-print("Structured Reference:", scripture_ref.get_structured_ref())
-print("Line Number:", scripture_ref.line_number)
+# # Example usage:
+# reference = "1Jn 5:7-8"
+# scripture_ref = ScriptureReference(reference)
+# print("Structured Reference:", scripture_ref.get_structured_ref())
+# print("Line Number:", scripture_ref.line_number)

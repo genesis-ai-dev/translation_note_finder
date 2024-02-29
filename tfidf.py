@@ -125,7 +125,7 @@ def analyze_verse_in_corpus(file_path, interested_line, romanize=False):
     scores_dict = dict(zip(feature_names, scores))
 
     # Extract the interested verse text
-    interested_verse = extract_interested_verse(file_path, interested_line - 1, romanize=romanize)  # Adjust for zero-indexing
+    interested_verse = extract_interested_verse(file_path, interested_line - 1, romanize=romanize)  
     
     # Map n-grams in verse to their TF-IDF scores
     if interested_verse:
