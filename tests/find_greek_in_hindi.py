@@ -1,5 +1,5 @@
 import guidance
-#  gen, system, user, assistant, instruction
+from guidance import  models, gen, system, user, assistant, instruction
 from openai import OpenAI
 import string
 from itertools import islice
@@ -8,7 +8,7 @@ from tfidf import analyze_verse_in_corpus
 
 
 
-# llm = models.OpenAI("gpt-3.5-turbo-instruct")
+llm = models.OpenAI("gpt-3.5-turbo-instruct")
 
 eng_verse = 'Blessed be the God and Father of our Lord Jesus Christ, who has blessed us in Christ with every spiritual blessing in the heavenly places,'
 hin_verse = 'हमारे प्रभु यीशु मसीह का पिता और परमेश्वर धन्य हो। उसने हमें मसीह के रूप में स्वर्ग के क्षेत्र में हर तरह के आशीर्वाद दिये हैं।'
@@ -18,11 +18,11 @@ translation_note = 'illustrates the intimate union between believers and Christ.
 from guidance import models, select
 
 model_path = 'models/neural-chat-7b-v3-3.Q2_K.gguf'
-llm = models.LlamaCpp(model_path, n_gpu_layers=1)
+# llm = models.LlamaCpp(model_path, n_gpu_layers=1)
 
 lm = llm
-# with instruction():
-lm += "What is a popular flavor?"
+with instruction():
+    lm += "What is a popular flavor?"
 lm += select(['chocolate', 'vanilla', 'strawberry'], name='flavor')
 print(lm['flavor'])
 # print(uroman(greek_term))
