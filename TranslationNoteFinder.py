@@ -4,12 +4,12 @@ import re
 from langdetect import detect
 import pycountry
 from sklearn.feature_extraction.text import TfidfVectorizer
-import guidance
-from guidance import models, select, instruction # use llama-cpp-python==0.2.26
+from guidance import models, gen, select, instruction, system, user, assistant # use llama-cpp-python==0.2.26
 from openai import OpenAI
 from romanize import uroman
 from ScriptureReference import ScriptureReference as SR
 import stanza
+import difflib
 from TrainingData import greek_to_lang
 
 
@@ -18,7 +18,8 @@ class TranslationNoteFinder:
 
     greek_bible_path = 'bibles/grc-grctcgnt.txt'
     
-    def __init__(self, translation_notes_path, bible_text_path, model_path):
+    # lang_code follows ISO 639-1 standard
+    def __init__(self, translation_notes_path, bible_text_path, model_path=None, lang_code=None):
         self.translation_notes_path = translation_notes_path
         
         # Load Bibles
@@ -26,17 +27,20 @@ class TranslationNoteFinder:
         self.greek_bible_text = self.load_bible(self.greek_bible_path)
         self.target_bible_text = self.load_bible(bible_text_path)
         first_line_nt = self.target_bible_text.splitlines()[23213]
-        print(f'First line of NT: {first_line_nt}')
+        # print(f'First line of NT: {first_line_nt}')
 
-        # Auto-detect language of target Bible text
-        self.language = detect(first_line_nt)
-        self.lang_name = pycountry.languages.get(alpha_2=self.language).name
-        print(f'Detected language of target Bible text: {self.lang_name}')
+        # Auto-detect language of target Bible text (occassionally incorrect, so lang_code can be passed in)
+        if lang_code:
+            self.language = lang_code
+            self.lang_name = pycountry.languages.get(alpha_2=self.language).name
+            print(f'Language of target Bible text: {self.lang_name}')
+        else:
+            self.language = detect(first_line_nt)
+            self.lang_name = pycountry.languages.get(alpha_2=self.language).name
+            print(f'Detected language of target Bible text: {self.lang_name}')
 
-        self.llm = models.LlamaCpp(model_path, n_ctx=4096, n_gpu_layers=1)
-        # self.llm = models.OpenAI("gpt-3.5-turbo-instruct")
-        self.lm = self.llm
-        self.lm += f'Here are some good examples of translating from Greek into {self.lang_name}: {greek_to_lang[self.lang_name]}'
+        if model_path:
+            self.model_path = model_path
 
         # Eventually replace with langdetect sending langcode to download
         stanza.download(self.language)
@@ -46,15 +50,13 @@ class TranslationNoteFinder:
         self.translation_notes = self.load_translation_notes(translation_notes_path)
         self.target_bible_text = self.load_bible(bible_text_path)
         self.tfidf_vectorizer, self.tfidf_matrix = self.create_tfidf_vectorizer_matrix()
-        # Print a portion of the matrix
-        print(f'portion of tfidf matrix {self.tfidf_matrix[:10, :10].todense()}')
+        # print(f'portion of tfidf matrix {self.tfidf_matrix[:10, :10].todense()}')
 
             
     def load_translation_notes(self, translation_notes_path):
         with open(translation_notes_path, 'r', encoding='utf-8') as file:
             translation_notes = json.load(file)
-            # Print first translation note
-            print(f'First translation note: {translation_notes[0]}')
+            # print(f'First translation note: {translation_notes[0]}')
         return translation_notes
     
 
@@ -81,23 +83,7 @@ class TranslationNoteFinder:
         if current_document:
             joined_doc_string = " ".join(current_document)
             documents.append(joined_doc_string)
-        # Print the first 10 words of the first two documents
-        print(f'First 10 words of first segmented document: {documents[0].split()[:10]}')
-        print(f'First 10 words of second segmented document: {documents[1].split()[:10]}')
         return documents
-    
-
-    # def load_tfidf_vectorizer_matrix(self, tfidf_vectorizer_path):
-    #     # Check if TF-IDF matrix exists. If so, load it; if not, create it.
-    #     try:
-    #         with open(self.tfidf_vectorizer_path, 'rb') as f:
-    #             tfidf_vectorizer, tfidf_matrix = pickle.load(f)
-    #     except FileNotFoundError:
-    #         tfidf_vectorizer, tfidf_matrix = self.create_tfidf_vectorizer_matrix()
-    #         with open(self.tfidf_vectorizer_path, 'wb') as f:
-    #             pickle.dump([tfidf_vectorizer, tfidf_matrix], f)
-    #     print('Returning loaded or created tfidf vectorizer and matrix')
-    #     return tfidf_vectorizer, tfidf_matrix
 
 
     def stanza_tokenizer(self, text):
@@ -110,7 +96,7 @@ class TranslationNoteFinder:
 
     def create_tfidf_vectorizer_matrix(self):
         print('Creating tfidf vectorizer and matrix')
-        tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(2, 3)) 
+        tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(1, 3)) 
         segmented_corpus = self.segment_corpus(self.target_bible_text)
         tfidf_matrix = tfidf_vectorizer.fit_transform(segmented_corpus)
         return tfidf_vectorizer, tfidf_matrix
@@ -133,20 +119,38 @@ class TranslationNoteFinder:
     # For each translation note in verse, use guidance select() method to select the verse ngram which best matches the 
     # greek term of the translation note
     def best_ngram_for_note(self, note, verse_ngrams, language):
+        # local_llm = models.LlamaCpp(self.model_path, n_gpu_layers=1) # n_ctx=4096 to increase prompt size from 512 tokens
+        # local_lm = local_llm
+        # self.local_lm += f'Here are some good examples of translating from Greek into {self.lang_name}: {greek_to_lang[self.lang_name]}'
+
+        openai_llm = models.OpenAI("gpt-4")
+        openai_lm = openai_llm
+        
         print(f'All ngrams in verse guidance is selecting from: {[key for key in verse_ngrams.keys()]}')
         # print(f'All ngrams in verse guidance is selecting from: {[uroman(key) for key in verse_ngrams.keys()]}')
         greek_term = note['greek_term'].strip()
         # greek_term = uroman(note['greek_term']).strip()
         
+        with system():
+            openai_lm += f'You are an expert at translating from Greek into {language}.'
+            openai_lm += 'When asked to translate, provide only the translation of the term. Nothing else. Do not provide any additional information or context.'
+            openai_lm += 'Be extrememly succinct in your translations.'
+            openai_lm += 'You must choose only from the list of translation options you are given. Choose the single best option.'
         # with instruction():
-        self.lm += f'What is a good translation of {greek_term} from Greek into {language}?'
-        self.lm += select([key for key in verse_ngrams.keys()], name='ngram')
-        # lm += f'The best translation of {greek_term} from Romanized Greek into Romanized {language} is '
-        # lm += select([uroman(key) for key in verse_ngrams.keys()], name='ngram')
-        # Print the selected ngram
-        print(f'Best ngram found for note: {self.lm["ngram"]}')
-        return self.lm['ngram'].strip()
-        # Add try/except to this function to allow it to handle no options (or similar)
+        with user():
+            openai_lm += f'What is a good translation of {greek_term} from Greek into {language} and is found here: {verse_ngrams.keys()}?'
+        with assistant():    
+            openai_lm += gen('openai_translation', stop='.')
+        print(f'OpenAI translation: {openai_lm["openai_translation"]}')
+        
+        try:
+            ngram = difflib.get_close_matches(openai_lm["openai_translation"].strip(), verse_ngrams.keys(), n=1, cutoff=0.3)[0]
+        except IndexError:
+            ngram = "No close match found"
+        
+       
+        print(f'Best ngram found for note: {ngram}')
+        return ngram
 
 
     def verse_notes(self, verse_ref):
@@ -171,8 +175,6 @@ class TranslationNoteFinder:
         # Get the target language form of the verse
         target_verse_text = self.target_bible_text.splitlines()[v_ref.line_number - 1]
         print(f'Target verse text: {target_verse_text}')
-        # language = Language.get(detect(target_verse_text[0])).language_name()
-        # language = detect(target_verse_text[0])
         print(f'Language of target verse text: {self.lang_name}')
         # if re.search(r'[^\x00-\x7F]', target_verse_text):
         #     target_verse_text = uroman(target_verse_text)
