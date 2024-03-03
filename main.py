@@ -1,6 +1,8 @@
 from TranslationNoteFinder import TranslationNoteFinder
 
-tnf = TranslationNoteFinder('translation_notes.json', 'bibles/eng-engkjvcpb.txt', lang_code='en')
+tnf = TranslationNoteFinder('translation_notes.json', 'bibles/hin-hin2017.txt', lang_code='hi')
+
+print(tnf.verse_notes('rom3:22'))
 
 # verse that includes en Christo
 print(tnf.verse_notes('eph1:1'))

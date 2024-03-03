@@ -10,6 +10,7 @@ from romanize import uroman
 from ScriptureReference import ScriptureReference as SR
 import stanza
 import difflib
+import requests
 from TrainingData import greek_to_lang
 
 
@@ -18,6 +19,7 @@ class TranslationNoteFinder:
 
     greek_bible_path = 'bibles/grc-grctcgnt.txt'
     
+    # Bibles in various languages can be downloaded from https://github.com/BibleNLP/ebible/tree/main/corpus
     # lang_code follows ISO 639-1 standard
     def __init__(self, translation_notes_path, bible_text_path, model_path=None, lang_code=None):
         self.translation_notes_path = translation_notes_path
@@ -27,7 +29,6 @@ class TranslationNoteFinder:
         self.greek_bible_text = self.load_bible(self.greek_bible_path)
         self.target_bible_text = self.load_bible(bible_text_path)
         first_line_nt = self.target_bible_text.splitlines()[23213]
-        # print(f'First line of NT: {first_line_nt}')
 
         # Auto-detect language of target Bible text (occassionally incorrect, so lang_code can be passed in)
         if lang_code:
@@ -39,35 +40,53 @@ class TranslationNoteFinder:
             self.lang_name = pycountry.languages.get(alpha_2=self.language).name
             print(f'Detected language of target Bible text: {self.lang_name}')
 
+        # Local model currently not in use
         if model_path:
             self.model_path = model_path
 
-        # Eventually replace with langdetect sending langcode to download
+        # Download target language data for use in tokenizer
         stanza.download(self.language)
         self.nlp = stanza.Pipeline(lang=self.language, processors='tokenize')
 
-        self.tfidf_vectorizer_path = bible_text_path + '.tfidf.pkl'
+        # Assign instance variables
         self.translation_notes = self.load_translation_notes(translation_notes_path)
         self.target_bible_text = self.load_bible(bible_text_path)
+
+        # Get tf-idf vectorizer, matrix for target Bible text
         self.tfidf_vectorizer, self.tfidf_matrix = self.create_tfidf_vectorizer_matrix()
-        # print(f'portion of tfidf matrix {self.tfidf_matrix[:10, :10].todense()}')
 
             
     def load_translation_notes(self, translation_notes_path):
         with open(translation_notes_path, 'r', encoding='utf-8') as file:
             translation_notes = json.load(file)
-            # print(f'First translation note: {translation_notes[0]}')
         return translation_notes
     
 
-    # Loads Bible as it is in file - one verse per line
+    # # Loads Bible as it is in file - one verse per line
+    # def load_bible(self, bible_path):
+    #     with open(bible_path, 'r', encoding='utf-8') as file:
+    #         bible_text = file.read()
+    #     return bible_text
+
     def load_bible(self, bible_path):
-        with open(bible_path, 'r', encoding='utf-8') as file:
-            bible_text = file.read()
+        # Check if the path starts with "http://" or "https://"
+        if bible_path.startswith('http://') or bible_path.startswith('https://'):
+            # Use requests to fetch the Bible text from the URL
+            response = requests.get(bible_path)
+            # Check if the request was successful
+            if response.status_code == 200:
+                bible_text = response.text
+            else:
+                bible_text = ''  # Or handle errors as needed
+        else:
+            # Load the Bible text from a local file
+            with open(bible_path, 'r', encoding='utf-8') as file:
+                bible_text = file.read()
         return bible_text
 
 
     # Transforms loaded Bible text from file into a list of documents/books (prep for tf-idf)
+    # i.e., documents = [Genesis content, Exodus content, ...]
     def segment_corpus(self, bible_text):
         documents = []
         current_document = []
@@ -86,6 +105,8 @@ class TranslationNoteFinder:
         return documents
 
 
+    # A method created for the tokenizer arg of the TfidfVectorizer class constructor
+    # See create_tfidf_vectorizer_matrix method
     def stanza_tokenizer(self, text):
         # Use the Stanza pipeline to process the text
         doc = self.nlp(text)
@@ -94,30 +115,30 @@ class TranslationNoteFinder:
         return tokens
 
 
+    # Create a tf-idf vectorizer and matrix for the target Bible text
     def create_tfidf_vectorizer_matrix(self):
-        print('Creating tfidf vectorizer and matrix')
         tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(1, 3)) 
         segmented_corpus = self.segment_corpus(self.target_bible_text)
         tfidf_matrix = tfidf_vectorizer.fit_transform(segmented_corpus)
         return tfidf_vectorizer, tfidf_matrix
 
 
+    # Use the tf-idf matrix to get the tf-idf scores for the features (n-grams) of a specific book
     def get_tfidf_book_features(self, book_code):
         book_index = list(SR.book_codes.keys()).index(book_code)
         feature_names = self.tfidf_vectorizer.get_feature_names_out()
-
         dense = self.tfidf_matrix[book_index].todense()
         document_tfidf_scores = dense.tolist()[0]
         feature_scores = dict(zip(feature_names, document_tfidf_scores))
 
         # Filter out zero scores
         filtered_feature_scores = {feature: score for feature, score in feature_scores.items() if score > 0}
-        # Sort by score in descending order
+        # Sort by score in descending order (just because...)
         sorted_feature_scores = dict(sorted(filtered_feature_scores.items(), key=lambda item: item[1], reverse=True))
         return sorted_feature_scores
     
-    # For each translation note in verse, use guidance select() method to select the verse ngram which best matches the 
-    # greek term of the translation note
+
+    # For each translation note in verse, use difflib to select the verse ngram which best matches the AI-translated Greek term
     def best_ngram_for_note(self, note, verse_ngrams, language):
         # local_llm = models.LlamaCpp(self.model_path, n_gpu_layers=1) # n_ctx=4096 to increase prompt size from 512 tokens
         # local_lm = local_llm
@@ -204,6 +225,7 @@ class TranslationNoteFinder:
 
         print(f'Verse notes to be returned: {ngrams}')
         return {
+            'target_verse_text': target_verse_text,
             'verse_ref': v_ref.structured_ref,
             'line_number': v_ref.line_number,
             'ngrams': ngrams
