@@ -1,22 +1,32 @@
 [
   {
     "greek_term": "λόγος",
-    "translation_note": "often translated as 'word,' 'λόγος' in the Johannine prologue conveys a complex concept that includes divine revelation, reason, and creative power. In the context of John 1:1, it refers to Jesus as the pre-existent divine Word through whom all things were made and who reveals God to humanity. Translators should capture the multi-faceted nature of 'λόγος' as both communication and the personification of divine wisdom and presence."
+    "translation_note": "often translated as 'word,' 'λόγος' in the Johannine prologue conveys a complex concept that includes divine revelation, reason, and creative power. In the context of John 1:1, it refers to Jesus as the pre-existent divine Word through whom all things were made and who reveals God to humanity. Translators should capture the multi-faceted nature of 'λόγος' as both communication and the personification of divine wisdom and presence.",
+    "verse": ""
   },
   {
     "greek_term": "ἀγάπη",
-    "translation_note": "represents a form of love that is selfless, sacrificial, and unconditional, often distinguishing divine love from other types of love. In the New Testament, 'ἀγάπη' describes God's love for humanity and the love believers are called to have for one another. Translators should convey the depth and sacrificial nature of this love, differentiating it from feelings or affection."
+    "translation_note": "represents a form of love that is selfless, sacrificial, and unconditional, often distinguishing divine love from other types of love. In the New Testament, 'ἀγάπη' describes God's love for humanity and the love believers are called to have for one another. Translators should convey the depth and sacrificial nature of this love, differentiating it from feelings or affection.",
+    "verse": ""
   },
   {
     "greek_term": "κοινωνία",
-    "translation_note": "translates to 'fellowship' or 'communion,' but encompasses much more than mere social interaction. 'κοινωνία' in the New Testament implies a deep, spiritual connection among believers, rooted in their shared participation in Christ and the Holy Spirit. It involves mutual support, sharing, and a common commitment to Christ's mission. Translators need to convey the richness of this fellowship as an expression of shared life and unity in the Spirit."
+    "translation_note": "translates to 'fellowship' or 'communion,' but encompasses much more than mere social interaction. 'κοινωνία' in the New Testament implies a deep, spiritual connection among believers, rooted in their shared participation in Christ and the Holy Spirit. It involves mutual support, sharing, and a common commitment to Christ's mission. Translators need to convey the richness of this fellowship as an expression of shared life and unity in the Spirit.",
+    "verse": ""
   },
   {
     "greek_term": "δικαιοσύνη",
-    "translation_note": "often rendered as 'righteousness,' this term reflects a status of being in right relationship with God, conforming to His standards and will. In the New Testament, 'δικαιοσύνη' is closely related to justification through faith in Christ, signifying not only ethical behavior but also a legal standing of acquittal and acceptance by God. Translators should highlight the forensic aspect of righteousness as well as its ethical implications, emphasizing its source in God's grace through faith."
+    "translation_note": "often rendered as 'righteousness,' this term reflects a status of being in right relationship with God, conforming to His standards and will. In the New Testament, 'δικαιοσύνη' is closely related to justification through faith in Christ, signifying not only ethical behavior but also a legal standing of acquittal and acceptance by God. Translators should highlight the forensic aspect of righteousness as well as its ethical implications, emphasizing its source in God's grace through faith.",
+    "verse": ""
   },
   {
     "greek_term": "ἐν Χριστῷ",
-    "translation_note": "illustrates the intimate union between believers and Christ. The preposition ἐν (in) goes beyond physical location, indicating a profound spiritual reality. Translators need to convey the concept of being 'in Christ' as being part of a new creation, identity, and living within the sphere of Christ's influence and lordship."
+    "translation_note": "illustrates the intimate union between believers and Christ. The preposition ἐν (in) goes beyond physical location, indicating a profound spiritual reality. Translators need to convey the concept of being 'in Christ' as being part of a new creation, identity, and living within the sphere of Christ's influence and lordship.",
+    "verse": ""
+  },
+  {
+    "greek_term": "διὰ πίστεως Ἰησοῦ Χριστοῦ",
+    "translation_note": "Here, faith in Jesus Christ is a possessive form that indicates faith that is associated with Jesus Christ. This could refer to: (1) trust in Jesus Christ. Alternate translation: “by trusting in Jesus Christ” or “by believing in Jesus Christ” (2) the faithfulness of Jesus Christ. Alternate translation: “through the faithfulness that Jesus Christ possesses” or “through how faithful Jesus Christ is”",
+    "verse": ""
   }
 ]

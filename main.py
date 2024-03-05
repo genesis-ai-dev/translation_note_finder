@@ -1,6 +1,8 @@
+import os
 from TranslationNoteFinder import TranslationNoteFinder
 
-tnf = TranslationNoteFinder('translation_notes.json', 'bibles/hin-hin2017.txt', lang_code='hi')
+api_key = os.getenv('OPENAI_API_KEY')
+tnf = TranslationNoteFinder('translation_notes.json', 'bibles/hin-hin2017.txt', api_key=api_key, lang_code='hi')
 
 print(tnf.verse_notes('rom3:22'))
 

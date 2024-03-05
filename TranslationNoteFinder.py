@@ -1,11 +1,11 @@
 import json
-import pickle
+import csv
 import re
 from langdetect import detect
 import pycountry
 from sklearn.feature_extraction.text import TfidfVectorizer
 from guidance import models, gen, select, instruction, system, user, assistant # use llama-cpp-python==0.2.26
-from openai import OpenAI
+import openai
 from romanize import uroman
 from ScriptureReference import ScriptureReference as SR
 import stanza
@@ -21,7 +21,7 @@ class TranslationNoteFinder:
     
     # Bibles in various languages can be downloaded from https://github.com/BibleNLP/ebible/tree/main/corpus
     # lang_code follows ISO 639-1 standard
-    def __init__(self, translation_notes_path, bible_text_path, model_path=None, lang_code=None):
+    def __init__(self, translation_notes_path, bible_text_path, api_key, model_path=None, lang_code=None):
         self.translation_notes_path = translation_notes_path
         
         # Load Bibles
@@ -51,22 +51,46 @@ class TranslationNoteFinder:
         # Assign instance variables
         self.translation_notes = self.load_translation_notes(translation_notes_path)
         self.target_bible_text = self.load_bible(bible_text_path)
+        self.api_key = api_key
 
         # Get tf-idf vectorizer, matrix for target Bible text
         self.tfidf_vectorizer, self.tfidf_matrix = self.create_tfidf_vectorizer_matrix()
 
+
+    def parse_tsv_to_json(self, filepath, book_abbrev):
+        result = []  # Initialize an empty list to store the dictionaries.
+        
+        with open(filepath, mode='r', encoding='utf-8') as file:
+            tsv_reader = csv.reader(file, delimiter='\t')
+            
+            for row in tsv_reader:
+                # Check if the row contains a Greek term (non-empty) in the expected position.
+                if row and len(row) > 3 and row[3].strip():
+                    # Construct a dictionary for the current row.
+                    entry = {
+                        "greek_term": row[3].strip(),
+                        "translation_note": row[1].strip(),
+                        "verse": book_abbrev + row[0].strip()
+                    }
+                    # Append the dictionary to the result list.
+                    result.append(entry)
+        
+        return result
+
             
     def load_translation_notes(self, translation_notes_path):
-        with open(translation_notes_path, 'r', encoding='utf-8') as file:
-            translation_notes = json.load(file)
+        # If filepath ends with json
+        if translation_notes_path.endswith('.json'):
+            with open(translation_notes_path, 'r', encoding='utf-8') as file:
+                translation_notes = json.load(file)
+        # If filepath ends with tsv
+        # elif translation_notes_path.endswith('.tsv'):
+        #     #book_abbrev is last 3 characters of filename before extension
+        #     book_abbrev = translation_notes_path.split('/')[-1][:-4][-3:]
+        #     translation_notes = self.parse_tsv_to_json(translation_notes_path, book_abbrev)
+
         return translation_notes
     
-
-    # # Loads Bible as it is in file - one verse per line
-    # def load_bible(self, bible_path):
-    #     with open(bible_path, 'r', encoding='utf-8') as file:
-    #         bible_text = file.read()
-    #     return bible_text
 
     def load_bible(self, bible_path):
         # Check if the path starts with "http://" or "https://"
@@ -117,7 +141,7 @@ class TranslationNoteFinder:
 
     # Create a tf-idf vectorizer and matrix for the target Bible text
     def create_tfidf_vectorizer_matrix(self):
-        tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(1, 3)) 
+        tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(1, 20)) 
         segmented_corpus = self.segment_corpus(self.target_bible_text)
         tfidf_matrix = tfidf_vectorizer.fit_transform(segmented_corpus)
         return tfidf_vectorizer, tfidf_matrix
@@ -141,10 +165,8 @@ class TranslationNoteFinder:
     # For each translation note in verse, use difflib to select the verse ngram which best matches the AI-translated Greek term
     def best_ngram_for_note(self, note, verse_ngrams, language):
         # local_llm = models.LlamaCpp(self.model_path, n_gpu_layers=1) # n_ctx=4096 to increase prompt size from 512 tokens
-        # local_lm = local_llm
-        # self.local_lm += f'Here are some good examples of translating from Greek into {self.lang_name}: {greek_to_lang[self.lang_name]}'
 
-        openai_llm = models.OpenAI("gpt-4")
+        openai_llm = models.OpenAI("gpt-4", api_key=self.api_key) # To use OPENAI_API_KEY environment variable, omit api_key argument
         openai_lm = openai_llm
         
         print(f'All ngrams in verse guidance is selecting from: {[key for key in verse_ngrams.keys()]}')
@@ -178,9 +200,6 @@ class TranslationNoteFinder:
         # Get the Greek form of the verse
         v_ref = SR(verse_ref)
         gk_verse_text = self.greek_bible_text.splitlines()[v_ref.line_number - 1]
-        # Print lines 1 and 23214 of the Greek Bible
-        print(f'Line 1 of Greek Bible (should be blank): {self.greek_bible_text.splitlines()[0]}')
-        print(f'Line 23214 of Greek Bible (should be Matt 1:1): {self.greek_bible_text.splitlines()[23213]}')
         
         # Get all relevant translation notes for the verse (based on Greek terms found in Greek verse)
         with open('translation_notes.json', 'r', encoding='utf-8') as file:
@@ -195,10 +214,6 @@ class TranslationNoteFinder:
         
         # Get the target language form of the verse
         target_verse_text = self.target_bible_text.splitlines()[v_ref.line_number - 1]
-        print(f'Target verse text: {target_verse_text}')
-        print(f'Language of target verse text: {self.lang_name}')
-        # if re.search(r'[^\x00-\x7F]', target_verse_text):
-        #     target_verse_text = uroman(target_verse_text)
 
         # Find n-grams from the book of the verse which exist in the verse
         bookCode = v_ref.structured_ref['bookCode']
