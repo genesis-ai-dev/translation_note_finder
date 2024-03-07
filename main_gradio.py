@@ -1,4 +1,5 @@
 import gradio as gr
+from gradio import HighlightedText
 from TranslationNoteFinder import TranslationNoteFinder
 
 # Updated dictionary mapping language codes to URLs of Bible text files
@@ -16,7 +17,7 @@ def load_resources(api_key, lang_code):
     bible_text_url = bible_urls.get(lang_code)
     # 'translation_notes.json'
     # 'translation_notes/tn_ROM.tsv'
-    tnf = TranslationNoteFinder('translation_notes.json', bible_text_url, api_key, lang_code=lang_code)
+    tnf = TranslationNoteFinder('translation_notes/tn_ROM.tsv', bible_text_url, api_key, lang_code=lang_code)
     return "Language resources loaded successfully.", "", "", ""
 
 def find_notes(verse_ref):
@@ -28,7 +29,8 @@ def find_notes(verse_ref):
     verse_ref_formatted = f"{results['verse_ref']['bookCode']} {results['verse_ref']['startChapter']}:{results['verse_ref']['startVerse']}"
     
     target_text = results['target_verse_text']
-    colors = ["yellow", "lightgreen", "lightblue", "pink", "lightgrey"]
+    colors = ["yellow", "lightgreen", "lightblue", "pink", "lightgrey", "orange", "purple", "cyan", "magenta", "lime", "teal", 
+              "maroon", "navy", "olive", "silver", "gold", "coral", "turquoise", "indigo", "violet"]
     ngrams_highlights = {}
     for i, ngram in enumerate(reversed(results['ngrams'])):  # Reverse to not mess up the indices
         start, end = ngram['start_pos'], ngram['end_pos']
@@ -48,8 +50,6 @@ def find_notes(verse_ref):
     return verse_ref_formatted, target_text, line_number, ngrams_formatted
 
 
-
-
 # Adjusting Gradio interface for HTML output
 with gr.Blocks() as app:
     api_key_input = gr.Textbox(label="API Key", type='password')
@@ -61,10 +61,12 @@ with gr.Blocks() as app:
     
     verse_ref_output = gr.Textbox(label="Verse Reference")
     target_text_output = gr.HTML(label="Target Verse Text")  # Changed to HTML component
+    # target_text_output = gr.HighlightedText(label="Target Verse Text")
     line_number_output = gr.Textbox(label="Line Number")
     ngrams_output = gr.HTML(label="N-grams")  # Changed to HTML for formatted output
 
     load_btn.click(fn=load_resources, inputs=[api_key_input, lang_dropdown], outputs=[verse_ref_output, target_text_output, line_number_output, ngrams_output])
     translate_btn.click(fn=find_notes, inputs=verse_input, outputs=[verse_ref_output, target_text_output, line_number_output, ngrams_output])
+
 
 app.launch()

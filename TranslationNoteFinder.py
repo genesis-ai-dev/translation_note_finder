@@ -65,11 +65,11 @@ class TranslationNoteFinder:
             
             for row in tsv_reader:
                 # Check if the row contains a Greek term (non-empty) in the expected position.
-                if row and len(row) > 3 and row[3].strip():
+                if row and len(row) > 3 and row[4].strip():
                     # Construct a dictionary for the current row.
                     entry = {
-                        "greek_term": row[3].strip(),
-                        "translation_note": row[1].strip(),
+                        "greek_term": row[4].strip(),
+                        "translation_note": row[6].strip(),
                         "verse": book_abbrev + row[0].strip()
                     }
                     # Append the dictionary to the result list.
@@ -78,23 +78,23 @@ class TranslationNoteFinder:
         return result
 
             
-    def load_translation_notes(self, translation_notes_path):
+    def load_translation_notes(self, translation_notes_path='None'):
         # If filepath ends with json
         if translation_notes_path.endswith('.json'):
             with open(translation_notes_path, 'r', encoding='utf-8') as file:
                 translation_notes = json.load(file)
-        # If filepath ends with tsv
-        # elif translation_notes_path.endswith('.tsv'):
-        #     #book_abbrev is last 3 characters of filename before extension
-        #     book_abbrev = translation_notes_path.split('/')[-1][:-4][-3:]
-        #     translation_notes = self.parse_tsv_to_json(translation_notes_path, book_abbrev)
-
+                print(f'First 5 json translation notes: {translation_notes[:5]}')  
+        elif translation_notes_path.endswith('.tsv'):
+            book_abbrev = translation_notes_path.split('/')[-1][:-4][-3:]
+            translation_notes = self.parse_tsv_to_json(translation_notes_path, book_abbrev)
+            print(f'First 5 tsv translation notes: {translation_notes[:5]}')
+        
         return translation_notes
     
 
     def load_bible(self, bible_path):
         # Check if the path starts with "http://" or "https://"
-        if bible_path.startswith('http://') or bible_path.startswith('https://'):
+        if bible_path.startswith('http'):
             # Use requests to fetch the Bible text from the URL
             response = requests.get(bible_path)
             # Check if the request was successful
@@ -141,7 +141,7 @@ class TranslationNoteFinder:
 
     # Create a tf-idf vectorizer and matrix for the target Bible text
     def create_tfidf_vectorizer_matrix(self):
-        tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(1, 20)) 
+        tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(1, 10)) 
         segmented_corpus = self.segment_corpus(self.target_bible_text)
         tfidf_matrix = tfidf_vectorizer.fit_transform(segmented_corpus)
         return tfidf_vectorizer, tfidf_matrix
@@ -202,11 +202,15 @@ class TranslationNoteFinder:
         gk_verse_text = self.greek_bible_text.splitlines()[v_ref.line_number - 1]
         
         # Get all relevant translation notes for the verse (based on Greek terms found in Greek verse)
-        with open('translation_notes.json', 'r', encoding='utf-8') as file:
-            translation_notes = json.load(file)
+        # with open('translation_notes.json', 'r', encoding='utf-8') as file:
+        #     translation_notes = json.load(file)
         translation_notes_in_verse = []
         print(f'Let\'s see if there are any translation notes for this verse: \n\t {gk_verse_text}')
-        for note in translation_notes:
+        for note in self.translation_notes:
+            note_v_ref = SR(note['verse'])
+            if note_v_ref.line_number != v_ref.line_number:
+                continue
+            print('Note verse:', note_v_ref.structured_ref)
             print(f'Checking for existence of: {note["greek_term"]}')
             if note['greek_term'].lower() in gk_verse_text.lower():
                 translation_notes_in_verse.append(note)

@@ -1,0 +1,27 @@
+import csv
+
+def parse_tsv_to_json(filepath, book_abbrev):
+    result = []  # Initialize an empty list to store the dictionaries.
+    
+    with open(filepath, mode='r', encoding='utf-8') as file:
+        tsv_reader = csv.reader(file, delimiter='\t')
+        
+        for row in tsv_reader:
+            # Check if the row contains a Greek term (non-empty) in the expected position.
+            if row and len(row) > 3 and row[4].strip():
+                # Construct a dictionary for the current row.
+                entry = {
+                    "greek_term": row[4].strip(),
+                    "translation_note": row[6].strip(),
+                    "verse": book_abbrev + row[0].strip()
+                }
+                # Append the dictionary to the result list.
+                result.append(entry)
+    
+    return result
+
+# Example usage
+result = parse_tsv_to_json('./translation_notes/tn_ROM.tsv', 'rom')
+
+# Print first 5 entries
+print(result[:5])

@@ -362,6 +362,21 @@ class ScriptureReference:
         line_number = start_line_of_book + verses_before + start_verse - 1
 
         return line_number
+    
+    # Override eq method to allow comparison of ScriptureReference objects based on line number
+    # def __eq__(self, other):
+    #     return self.line_number == other.line_number
+
+    # def __hash__(self):
+    #     book_code = self.structured_ref['bookCode']
+    #     start_chapter = self.structured_ref['startChapter']
+    #     start_verse = self.structured_ref['startVerse']
+    #     book_index = list(self.book_codes.keys()).index(book_code)
+    #     start_line_of_book = self.verse_ones[book_index]
+    #     verses_before = sum(self.book_codes[book_code]['verses'][:start_chapter - 1])
+    #     line_number = start_line_of_book + verses_before + start_verse - 1
+    #     return hash(line_number)
+    
 
 
 # # Example usage:

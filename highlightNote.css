@@ -1,0 +1,7 @@
+.note {
+    cursor: pointer;
+    text-decoration: underline;
+}
+.highlight {
+    background-color: yellow;
+}
