@@ -27,7 +27,6 @@ class TranslationNoteFinder:
         self.verses = TranslationNoteFinder.verses
         self.greek_bible_text = self.load_bible(self.greek_bible_path)
         self.target_bible_text = self.load_bible(bible_text_path)
-        first_line_nt = self.target_bible_text.splitlines()[23213]
 
         # Auto-detect language of target Bible text (occassionally incorrect, so lang_code can be passed in)
         if lang_code:
@@ -35,24 +34,14 @@ class TranslationNoteFinder:
             self.lang_name = pycountry.languages.get(alpha_2=self.language).name
             print(f'Language of target Bible text: {self.lang_name}')
         else:
+            first_line_nt = self.target_bible_text.splitlines()[23213]
             self.language = detect(first_line_nt)
             self.lang_name = pycountry.languages.get(alpha_2=self.language).name
             print(f'Detected language of target Bible text: {self.lang_name}')
 
-        # Local model currently not in use
-        if model_path:
-            self.model_path = model_path
-
-        # Download target language data for use in tokenizer
-        stanza.download(self.language)
-        self.nlp = stanza.Pipeline(lang=self.language, processors='tokenize')
-
         # Assign instance variables
         self.target_bible_text = self.load_bible(bible_text_path)
         self.api_key = api_key
-
-        # Get tf-idf vectorizer, matrix for target Bible text
-        self.tfidf_vectorizer, self.tfidf_matrix = self.create_tfidf_vectorizer_matrix()
 
 
     def parse_tsv_to_json(self, file_content, book_abbrev):
@@ -127,71 +116,37 @@ class TranslationNoteFinder:
         return documents
 
 
-    # A method created for the tokenizer arg of the TfidfVectorizer class constructor
-    # See create_tfidf_vectorizer_matrix method
-    def stanza_tokenizer(self, text):
-        # Use the Stanza pipeline to process the text
-        doc = self.nlp(text)
-        # Extract tokens from the Stanza Document object
-        tokens = [word.text for sent in doc.sentences for word in sent.words]
-        return tokens
-
-
-    # Create a tf-idf vectorizer and matrix for the target Bible text
-    def create_tfidf_vectorizer_matrix(self):
-        tfidf_vectorizer = TfidfVectorizer(tokenizer=self.stanza_tokenizer, ngram_range=(1, 10)) 
-        segmented_corpus = self.segment_corpus(self.target_bible_text)
-        tfidf_matrix = tfidf_vectorizer.fit_transform(segmented_corpus)
-        return tfidf_vectorizer, tfidf_matrix
-
-
-    # Use the tf-idf matrix to get the tf-idf scores for the features (n-grams) of a specific book
-    def get_tfidf_book_features(self, book_code):
-        book_index = list(SR.book_codes.keys()).index(book_code)
-        feature_names = self.tfidf_vectorizer.get_feature_names_out()
-        dense = self.tfidf_matrix[book_index].todense()
-        document_tfidf_scores = dense.tolist()[0]
-        feature_scores = dict(zip(feature_names, document_tfidf_scores))
-
-        # Filter out zero scores
-        filtered_feature_scores = {feature: score for feature, score in feature_scores.items() if score > 0}
-        # Sort by score in descending order (just because...)
-        sorted_feature_scores = dict(sorted(filtered_feature_scores.items(), key=lambda item: item[1], reverse=True))
-        return sorted_feature_scores
-    
-
     # For each translation note in verse, use difflib to select the verse ngram which best matches the AI-translated Greek term
-    def best_ngram_for_note(self, note, verse_ngrams, language):
+    def best_ngram_for_note(self, note, target_verse_text, language):
         # local_llm = models.LlamaCpp(self.model_path, n_gpu_layers=1) # n_ctx=4096 to increase prompt size from 512 tokens
 
         openai_llm = models.OpenAI("gpt-4", api_key=self.api_key) # To use OPENAI_API_KEY environment variable, omit api_key argument
         openai_lm = openai_llm
         
-        print(f'All ngrams in verse guidance is selecting from: {[key for key in verse_ngrams.keys()]}')
-        # print(f'All ngrams in verse guidance is selecting from: {[uroman(key) for key in verse_ngrams.keys()]}')
         greek_term = note['greek_term'].strip()
         # greek_term = uroman(note['greek_term']).strip()
         
         with system():
-            openai_lm += f'You are an expert at translating from Greek into {language}.'
-            openai_lm += 'When asked to translate, provide only the translation of the term. Nothing else. Do not provide any additional information or context.'
+            openai_lm += f'You are an expert at translating between Greek and {language}.'
+            openai_lm += f'When asked to translate, provide only the {language} translation of the Greek term found in the {language} verse. Nothing else. Do not provide any additional information or context.'
             openai_lm += 'Be extrememly succinct in your translations.'
-            openai_lm += 'You must choose only from the list of translation options you are given. Choose the single best option.'
+            openai_lm += f'You must choose only an N-gram found in the {language} verse.'
         # with instruction():
         with user():
-            openai_lm += f'What is a good translation of {greek_term} from Greek into {language} and is found here: {verse_ngrams.keys()}?'
+            openai_lm += f'What is a good translation of {greek_term} from Greek into {language} and is also found within this verse: {target_verse_text}?'
         with assistant():    
             openai_lm += gen('openai_translation', stop='.')
         print(f'OpenAI translation: {openai_lm["openai_translation"]}')
         
-        try:
-            ngram = difflib.get_close_matches(openai_lm["openai_translation"].strip(), verse_ngrams.keys(), n=1, cutoff=0.3)[0]
-        except IndexError:
-            ngram = "No close match found"
-        
-       
-        print(f'Best ngram found for note: {ngram}')
-        return ngram
+        # If openai_lm["openai_translation"] can be found in the verse, return it
+        llm_output = openai_lm["openai_translation"].strip()
+        print(f'LLM output: {llm_output}')
+        if llm_output in target_verse_text:
+            print(f'Found LLM output in verse: {llm_output}')
+            return llm_output
+        else:
+            print(f'LLM output not found in verse: {llm_output}')
+            return "No ngram found in verse"
 
 
     def verse_notes(self, verse_ref):
@@ -199,9 +154,6 @@ class TranslationNoteFinder:
         v_ref = SR(verse_ref)
         gk_verse_text = self.greek_bible_text.splitlines()[v_ref.line_number - 1]
         
-        # Get all relevant translation notes for the verse (based on Greek terms found in Greek verse)
-        # with open('translation_notes.json', 'r', encoding='utf-8') as file:
-        #     translation_notes = json.load(file)
         translation_notes_in_verse = []
         print(f'Let\'s see if there are any translation notes for this verse: \n\t {gk_verse_text}')
         translation_notes = self.load_translation_notes(v_ref.structured_ref['bookCode'])
@@ -218,16 +170,9 @@ class TranslationNoteFinder:
         # Get the target language form of the verse
         target_verse_text = self.target_bible_text.splitlines()[v_ref.line_number - 1]
 
-        # Find n-grams from the book of the verse which exist in the verse
-        bookCode = v_ref.structured_ref['bookCode']
-        book_ngrams = self.get_tfidf_book_features(bookCode)
-        print(f'First 30 n-grams of the book: {list(book_ngrams.keys())[:30]}')
-        verse_ngrams = {feature: score for feature, score in book_ngrams.items() if feature.lower() in target_verse_text.lower()}
-        print(f'First five n-grams of the verse along with their scores: {list(verse_ngrams.items())[:5]}')
-
         ngrams = []
         for note in translation_notes_in_verse:
-            ngram = self.best_ngram_for_note(note, verse_ngrams, self.lang_name)
+            ngram = self.best_ngram_for_note(note, target_verse_text, self.lang_name)
             start_pos = target_verse_text.lower().find(ngram.lower())
             end_pos = start_pos + len(ngram)
             greek_term = note['greek_term']

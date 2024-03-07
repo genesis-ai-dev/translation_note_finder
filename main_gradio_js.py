@@ -1,5 +1,6 @@
 import gradio as gr
-from TranslationNoteFinder import TranslationNoteFinder
+# from TranslationNoteFinder import TranslationNoteFinder
+from TranslationNoteFinderLLMOnly import TranslationNoteFinder
 
 # Updated dictionary mapping language codes to URLs of Bible text files
 bible_urls = {
@@ -16,38 +17,8 @@ def load_resources(api_key, lang_code):
     bible_text_url = bible_urls.get(lang_code)
     # 'translation_notes.json'
     # 'translation_notes/tn_ROM.tsv'
-    tnf = TranslationNoteFinder('translation_notes/tn_ROM.tsv', bible_text_url, api_key, lang_code=lang_code)
+    tnf = TranslationNoteFinder(bible_text_url, api_key, lang_code=lang_code)
     return "Language resources loaded successfully.", "", "", ""
-
-
-# css = """
-# .note {
-#     cursor: pointer;
-#     text-decoration: underline;
-# }
-# .highlight {
-#     background-color: yellow;
-# }
-# """
-
-# js = """
-# function highlightNote(noteId, verseText, startPos, endPos) {
-#     const noteElement = document.getElementById(noteId);
-#     if(noteElement) {
-#         const highlightedText = `<span class="highlight">${verseText.substring(startPos, endPos)}</span>`;
-#         const verseTextElement = document.querySelector('.verse-text');
-#         if (verseTextElement) {
-#             verseTextElement.innerHTML = verseText.substring(0, startPos) + highlightedText + verseText.substring(endPos);
-#         }
-#     }
-# }
-
-
-# """
-
-# custom_html = gr.HTML(value=f"{js}")
-
-
 
 
 with gr.Blocks(js="highlightNote.js", css="highlightNote.css") as app:
@@ -131,4 +102,4 @@ with gr.Blocks(js="highlightNote.js", css="highlightNote.css") as app:
     # load_btn.click(fn=load_resources, inputs=[api_key_input, lang_dropdown])
     # translate_btn.click(fn=find_notes, inputs=[verse_input])
 
-app.launch()
+app.launch(share=True)
