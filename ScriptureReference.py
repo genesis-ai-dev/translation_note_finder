@@ -201,7 +201,7 @@ class ScriptureReference:
                        57, 80, 55, 28, 35, 32, 31, 37, 50, 26, 46, 51, 66, 53, 59, 37, 35, 50, 40, 46, 51, 69, 53, 56, 20]
         },
         'JHN': {
-            'codes': ['Jn', 'Joh'],
+            'codes': ['Jn', 'Joh', 'Jhn'],
             'verses': [51, 25, 36, 54, 47, 71, 53, 59, 41, 42, 57, 50, 38, 31, 27, 33, 26, 40, 42, 31, 25]
         },
         'ACT': {
@@ -304,6 +304,10 @@ class ScriptureReference:
         self.reference = reference
         self._structured_ref = self.parse_scripture_reference(reference)
 
+    @property
+    def is_valid(self):
+        return bool(self._structured_ref['bookCode'] and self._structured_ref['startChapter'] and self._structured_ref['startVerse'])
+
     @classmethod
     def parse_scripture_reference(cls, input_ref):
         normalized_input = re.sub(r"\s+", "", input_ref).upper()
@@ -322,13 +326,32 @@ class ScriptureReference:
                 bookCode = code
                 break
 
-        startChap = int(startChapter) if startChapter else 0
-        endChap = int(endChapterOrVerse) if endChapterOrVerse and endVerse else startChap
-        startVer = int(startVerse) if startVerse else 0
-        endVer = int(endVerse) if endVerse else int(endChapterOrVerse) if endChapterOrVerse and not endVerse else startVer
+        # startChap = int(startChapter) if startChapter else 0
+        # endChap = int(endChapterOrVerse) if endChapterOrVerse and endVerse else startChap
+        # startVer = int(startVerse) if startVerse else 0
+        # endVer = int(endVerse) if endVerse else int(endChapterOrVerse) if endChapterOrVerse and not endVerse else startVer
 
-        if startVer != 0 and endVer == 0:
-            endVer = startVer
+        # if startVer != 0 and endVer == 0:
+        #     endVer = startVer
+
+        if bookCode:
+            num_chapters = len(cls.book_codes[bookCode]['verses'])
+            startChap = min(int(startChapter), num_chapters) if startChapter else 0
+            endChap = min(int(endChapterOrVerse), num_chapters) if endChapterOrVerse and endVerse else startChap
+
+            if startChap > 0:
+                num_verses_in_start_chap = cls.book_codes[bookCode]['verses'][startChap - 1]
+                startVer = min(int(startVerse), num_verses_in_start_chap) if startVerse else 0
+            else:
+                startVer = 0
+
+            if endChap > 0:
+                num_verses_in_end_chap = cls.book_codes[bookCode]['verses'][endChap - 1]
+                endVer = min(int(endVerse), num_verses_in_end_chap) if endVerse else startVer
+            else:
+                endVer = startVer
+        else:
+            startChap = endChap = startVer = endVer = 0
 
         return {
             'bookCode': bookCode,

@@ -66,7 +66,7 @@ class TranslationNoteFinder:
             if row and len(row) > 3 and row[4].strip():
                 # Construct a dictionary for the current row.
                 entry = {
-                    "greek_term": row[4].strip(),
+                    "source_term": row[4].strip(),
                     "translation_note": row[6].strip(),
                     "verse": book_abbrev + row[0].strip()
                 }
@@ -169,8 +169,8 @@ class TranslationNoteFinder:
         
         print(f'All ngrams in verse guidance is selecting from: {[key for key in verse_ngrams.keys()]}')
         # print(f'All ngrams in verse guidance is selecting from: {[uroman(key) for key in verse_ngrams.keys()]}')
-        greek_term = note['greek_term'].strip()
-        # greek_term = uroman(note['greek_term']).strip()
+        source_term = note['source_term'].strip()
+        # source_term = uroman(note['source_term']).strip()
         
         with system():
             openai_lm += f'You are an expert at translating from Greek into {language}.'
@@ -179,7 +179,7 @@ class TranslationNoteFinder:
             openai_lm += 'You must choose only from the list of translation options you are given. Choose the single best option.'
         # with instruction():
         with user():
-            openai_lm += f'What is a good translation of {greek_term} from Greek into {language} and is found here: {verse_ngrams.keys()}?'
+            openai_lm += f'What is a good translation of {source_term} from Greek into {language} and is found here: {verse_ngrams.keys()}?'
         with assistant():    
             openai_lm += gen('openai_translation', stop='.')
         print(f'OpenAI translation: {openai_lm["openai_translation"]}')
@@ -210,10 +210,10 @@ class TranslationNoteFinder:
             if note_v_ref.line_number != v_ref.line_number:
                 continue
             print('Note verse:', note_v_ref.structured_ref)
-            print(f'Checking for existence of: {note["greek_term"]}')
-            if note['greek_term'].lower() in gk_verse_text.lower():
+            print(f'Checking for existence of: {note["source_term"]}')
+            if note['source_term'].lower() in gk_verse_text.lower():
                 translation_notes_in_verse.append(note)
-        print(f'Greek terms for all translation notes in verse: {[note["greek_term"] for note in translation_notes_in_verse]}')
+        print(f'Greek terms for all translation notes in verse: {[note["source_term"] for note in translation_notes_in_verse]}')
         
         # Get the target language form of the verse
         target_verse_text = self.target_bible_text.splitlines()[v_ref.line_number - 1]
@@ -230,14 +230,14 @@ class TranslationNoteFinder:
             ngram = self.best_ngram_for_note(note, verse_ngrams, self.lang_name)
             start_pos = target_verse_text.lower().find(ngram.lower())
             end_pos = start_pos + len(ngram)
-            greek_term = note['greek_term']
+            source_term = note['source_term']
             trans_note = note['translation_note']
             ngrams.append(
             {
                 'ngram': ngram,
                 'start_pos': start_pos,
                 'end_pos': end_pos,
-                'greek_term': greek_term,
+                'source_term': source_term,
                 'trans_note': trans_note
             })
 
