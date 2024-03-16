@@ -1,0 +1,5 @@
+2024-03-15 11:19:16,949 - dspy.primitives.assertions - ERROR - SuggestionFailed: The matching text must be found in the verse. If it's not, the translation is incorrect.
+2024-03-15 11:27:18,559 - dspy.primitives.assertions - ERROR - SuggestionFailed: The matching text must be found in the verse. If it's not, the translation is incorrect.
+2024-03-15 11:46:40,383 - dspy.primitives.assertions - ERROR - SuggestionFailed: The matching text must be found in the verse. If it's not, the translation is incorrect.
+2024-03-15 11:49:41,227 - dspy.primitives.assertions - ERROR - SuggestionFailed: The matching text must be found in the verse. If it's not, the translation is incorrect.
+2024-03-15 11:52:49,139 - dspy.primitives.assertions - ERROR - SuggestionFailed: The matching text must be found in the verse. If it's not, the translation is incorrect.

@@ -1,0 +1,325 @@
+import dspy
+
+class RAG(dspy.Module):
+    def __init__(self, num_passages=3):
+        super().__init__()
+        self.retrieve = dspy.Retrieve(k=num_passages)
+        self.generate_answer = dspy.ChainOfThought("context, question -> answer")
+    
+    def forward(self, question):
+        context = self.retrieve(question).passages
+        answer = self.generate_answer(context=context, question=question)
+        return answer
+    
+#-------------
+# Signatures -
+#-------------
+
+sentence = "it's a charming and often affecting journey."  # example from the SST-2 dataset.
+
+classify = dspy.Predict('sentence -> sentiment')
+classify(sentence=sentence).sentiment
+
+# Output: 'Positive'
+
+#------------------------------------------------------------
+
+# Example from the XSum dataset.
+document = """The 21-year-old made seven appearances for the Hammers and netted his only goal for them in a Europa League qualification round match against Andorran side FC Lustrains last season. Lee had two loan spells in League One last term, with Blackpool and then Colchester United. He scored twice for the U's but was unable to save them from relegation. The length of Lee's contract with the promoted Tykes has not been revealed. Find all the latest football transfers on our dedicated page."""
+
+summarize = dspy.ChainOfThought('document -> summary')
+response = summarize(document=document)
+
+print(response.summary)
+
+# dspy.ChainOfThought also adds a rationale field that includes the LM's reasoning before it generates the output summary.
+print("Rationale:", response.rationale)
+
+#------------------------------------------------------------
+
+# Class-based DSPy Signatures
+# For some advanced tasks, you need more verbose signatures. This is typically to:
+# Clarify something about the nature of the task (expressed below as a 'docstring').
+# Supply hints on the nature of an input field, expressed as a desc keyword argument for 'dspy.InputField'.
+# Supply constraints on an output field, expressed as a desc keyword argument for 'dspy.OutputField'.
+
+class Emotion(dspy.Signature):
+    """Classify emotion among sadness, joy, love, anger, fear, surprise."""
+    
+    sentence = dspy.InputField()
+    sentiment = dspy.OutputField()
+
+sentence = "i started feeling a little vulnerable when the giant spotlight started blinding me"  # from dair-ai/emotion
+
+classify = dspy.Predict(Emotion)
+classify(sentence=sentence)
+
+# Output:
+
+# Prediction(
+#     sentiment='Fear'
+# )
+
+#------------------------------------------------------------
+
+class CheckCitationFaithfulness(dspy.Signature):
+    """Verify that the text is based on the provided context."""
+
+    context = dspy.InputField(desc="facts here are assumed to be true")
+    text = dspy.InputField()
+    faithfulness = dspy.OutputField(desc="True/False indicating if text is faithful to context")
+
+context = "The 21-year-old made seven appearances for the Hammers and netted his only goal for them in a Europa League qualification round match against Andorran side FC Lustrains last season. Lee had two loan spells in League One last term, with Blackpool and then Colchester United. He scored twice for the U's but was unable to save them from relegation. The length of Lee's contract with the promoted Tykes has not been revealed. Find all the latest football transfers on our dedicated page."
+
+text = "Lee scored 3 goals for Colchester United."
+
+faithfulness = dspy.ChainOfThought(CheckCitationFaithfulness)
+faithfulness(context=context, text=text)
+
+#----------
+# Modules -
+#----------
+
+#Define a simple signature for basic question answering
+class BasicQA(dspy.Signature):
+    """Answer questions with short factoid answers."""
+    question = dspy.InputField()
+    answer = dspy.OutputField(desc="often between 1 and 5 words")
+
+#Pass signature to ChainOfThought module
+generate_answer = dspy.ChainOfThought(BasicQA)
+
+# Call the predictor on a particular input.
+question='What is the color of the sky?'
+pred = generate_answer(question=question)
+
+print(f"Question: {question}")
+print(f"Predicted Answer: {pred.answer}")
+
+#-----------------------------------------------------------
+
+#Define a simple signature for basic question answering
+class BasicQA(dspy.Signature):
+    """Answer questions with short factoid answers."""
+    question = dspy.InputField()
+    answer = dspy.OutputField(desc="often between 1 and 5 words")
+
+#Pass signature to ChainOfThought module
+generate_answer = dspy.ChainOfThoughtWithHint(BasicQA)
+
+# Call the predictor on a particular input alongside a hint.
+question='What is the color of the sky?'
+hint = "It's what you often see during a sunny day."
+pred = generate_answer(question=question, hint=hint)
+
+print(f"Question: {question}")
+print(f"Predicted Answer: {pred.answer}")
+
+#-----------------------------------------------------------
+
+class BasicQA(dspy.Signature):
+    """Answer questions with short factoid answers."""
+    question = dspy.InputField()
+    answer = dspy.OutputField(desc="often between 1 and 5 words")
+
+# Example completions generated by a model for reference
+completions = [
+    dspy.Prediction(rationale="I recall that during clear days, the sky often appears this color.", answer="blue"),
+    dspy.Prediction(rationale="Based on common knowledge, I believe the sky is typically seen as this color.", answer="green"),
+    dspy.Prediction(rationale="From images and depictions in media, the sky is frequently represented with this hue.", answer="blue"),
+]
+
+# Pass signature to MultiChainComparison module
+compare_answers = dspy.MultiChainComparison(BasicQA)
+
+# Call the MultiChainComparison on the completions
+question = 'What is the color of the sky?'
+final_pred = compare_answers(completions, question=question)
+
+print(f"Question: {question}")
+print(f"Final Predicted Answer (after comparison): {final_pred.answer}")
+print(f"Final Rationale: {final_pred.rationale}")
+
+#-----------------------------------------------------------
+
+#Define a simple signature for basic question answering
+class BasicQA(dspy.Signature):
+    """Answer questions with short factoid answers."""
+    question = dspy.InputField()
+    answer = dspy.OutputField(desc="often between 1 and 5 words")
+
+#Pass signature to Predict module
+generate_answer = dspy.Predict(BasicQA)
+
+# Call the predictor on a particular input.
+question='What is the color of the sky?'
+pred = generate_answer(question=question)
+
+print(f"Question: {question}")
+print(f"Predicted Answer: {pred.answer}")
+
+#-----------------------------------------------------------
+
+#Define a simple signature for basic question answering
+class GenerateAnswer(dspy.Signature):
+    """Answer questions with short factoid answers."""
+    question = dspy.InputField()
+    answer = dspy.OutputField(desc="often between 1 and 5 words")
+
+# Pass signature to ProgramOfThought Module
+pot = dspy.ProgramOfThought(GenerateAnswer)
+
+#Call the ProgramOfThought module on a particular input
+question = 'Sarah has 5 apples. She buys 7 more apples from the store. How many apples does Sarah have now?'
+result = pot(question=question)
+
+print(f"Question: {question}")
+print(f"Final Predicted Answer (after ProgramOfThought process): {result.answer}")
+
+#-----------------------------------------------------------
+
+# It is specifically designed to compose the interleaved steps of Thought, Action, and Observation.
+
+# Define a simple signature for basic question answering
+class BasicQA(dspy.Signature):
+    """Answer questions with short factoid answers."""
+    question = dspy.InputField()
+    answer = dspy.OutputField(desc="often between 1 and 5 words")
+
+# Pass signature to ReAct module
+react_module = dspy.ReAct(BasicQA)
+
+# Call the ReAct module on a particular input
+question = 'What is the color of the sky?'
+result = react_module(question=question)
+
+print(f"Question: {question}")
+print(f"Final Predicted Answer (after ReAct process): {result.answer}")
+
+#-----------------------------------------------------------
+
+query='When was the first FIFA World Cup held?'
+
+# Call the retriever on a particular query.
+retrieve = dspy.Retrieve(k=3)
+topK_passages = retrieve(query).passages
+
+print(f"Top {retrieve.k} passages for question: {query} \n", '-' * 30, '\n')
+
+for idx, passage in enumerate(topK_passages):
+    print(f'{idx+1}]', passage, '\n')
+
+#---------------
+# Typed Modules-
+#---------------
+
+from dspy import InputField, OutputField, Signature
+from dspy.functional import TypedPredictor
+from pydantic import BaseModel
+
+# We define a pydantic type that automatically checks if it's argument is valid python code.
+class CodeOutput(BaseModel):
+    code: str
+    api_reference: str
+
+class CodeSignature(Signature):
+    function_description: str = InputField()
+    solution: CodeOutput = OutputField()
+
+cot_predictor = TypedPredictor(CodeSignature)
+prediction = cot_predictor(
+    function_description="Write a function that adds two numbers."
+)
+
+print(prediction["code"])
+print(prediction["api_reference"])
+
+#-----------------------------------------------------------
+
+from dspy import InputField, OutputField, Signature
+from dspy.functional import TypedChainOfThought
+from pydantic import BaseModel
+
+# We define a pydantic type that automatically checks if it's argument is valid python code.
+class CodeOutput(BaseModel):
+    code: str
+    api_reference: str
+
+class CodeSignature(Signature):
+    function_description: str = InputField()
+    solution: CodeOutput = OutputField()
+
+cot_predictor = TypedChainOfThought(CodeSignature)
+prediction = cot_predictor(
+    function_description="Write a function that adds two numbers."
+)
+
+print(prediction["code"])
+print(prediction["api_reference"])
+
+#-------------------------
+# Data (Training Samples)-
+#-------------------------
+
+qa_pair = dspy.Example(question="This is a question?", answer="This is an answer.")
+
+print(qa_pair)
+print(qa_pair.question)
+print(qa_pair.answer)
+
+#-----------------------------------------------------------
+
+article_summary = dspy.Example(article= "This is an article.", summary= "This is a summary.").with_inputs("article")
+
+input_key_only = article_summary.inputs()
+non_input_key_only = article_summary.labels()
+
+print("Example object with Input fields only:", input_key_only)
+print("Example object with Non-Input fields only:", non_input_key_only)
+
+# Example object with Input fields only: Example({'article': 'This is an article.'}) (input_keys=None)
+# Example object with Non-Input fields only: Example({'summary': 'This is a summary.'}) (input_keys=None)
+
+#----------
+# Metrics -
+#----------
+
+def validate_context_and_answer(example, pred, trace=None):
+    # check the gold label and the predicted answer are the same
+    answer_match = example.answer.lower() == pred.answer.lower()
+
+    # check the predicted answer comes from one of the retrieved contexts
+    context_match = any((pred.answer.lower() in c) for c in pred.context)
+
+    if trace is None: # if we're doing evaluation or optimization
+        return (answer_match + context_match) / 2.0
+    else: # if we're doing bootstrapping, i.e. self-generating good demonstrations of each step
+        return answer_match and context_match
+    
+#-----------------------------------------------------------
+
+# Define the signature for automatic assessments.
+class Assess(dspy.Signature):
+    """Assess the quality of a tweet along the specified dimension."""
+
+    assessed_text = dspy.InputField()
+    assessment_question = dspy.InputField()
+    assessment_answer = dspy.OutputField(desc="Yes or No")
+
+gpt4T = dspy.OpenAI(model='gpt-4-1106-preview', max_tokens=1000, model_type='chat')
+
+def metric(gold, pred, trace=None):
+    question, answer, tweet = gold.question, gold.answer, pred.output
+
+    engaging = "Does the assessed text make for a self-contained, engaging tweet?"
+    correct = f"The text should answer `{question}` with `{answer}`. Does the assessed text contain this answer?"
+    
+    with dspy.context(lm=gpt4T):
+        correct =  dspy.Predict(Assess)(assessed_text=tweet, assessment_question=correct)
+        engaging = dspy.Predict(Assess)(assessed_text=tweet, assessment_question=engaging)
+
+    correct, engaging = [m.assessment_answer.lower() == 'yes' for m in [correct, engaging]]
+    score = (correct + engaging) if correct and (len(tweet) <= 280) else 0
+
+    if trace is not None: return score >= 2
+    return score / 2.0
