@@ -17,7 +17,7 @@ inc_lm = dspy.OllamaLocal(
     timeout_s=3600 ,
 )
 
-compile = False
+compile = True
 
 # The following gets stuck on... 
 # "Setting `pad_token_id` to `eos_token_id`:2 for open-end generation."
@@ -25,7 +25,6 @@ compile = False
 #                       )
 
 dspy.settings.configure(lm=inc_lm)
-
 
 examples = [dspy.Example(verse='पौलुस की ओर से जो हमारे उद्धारकर्ता परमेश्‍वर, और हमारी आशा के आधार मसीह यीशु की आज्ञा से मसीह यीशु का प्रेरित है,', term='Παῦλος, ἀπόστολος', target_term='पौलु, प्रेरि'),
             dspy.Example(verse='पौलुस की ओर से जो हमारे उद्धारकर्ता परमेश्‍वर, और हमारी आशा के आधार मसीह यीशु की आज्ञा से मसीह यीशु का प्रेरित है,', term='ἡμῶν & ἡμῶν', target_term=' हमा'),
@@ -162,10 +161,10 @@ def validate_translation(example, prediction, trace=None):
     terms_distance = fuzz.ratio(example.target_term, prediction.matching_text) / 100
     found_in_verse = int(prediction.matching_text in example.verse)
     validity_score = (terms_distance + found_in_verse) / 2
-    if trace is None:
-        return validity_score
-    else:
-        return answer_match
+    # if trace is None:
+    return validity_score
+    # else:
+    #     return answer_match
 
 #----------------------
 # Pre-compile testing -
@@ -180,24 +179,32 @@ def validate_translation(example, prediction, trace=None):
 # Compile module -
 #-----------------
 
-config = dict(max_bootstrapped_demos=4, max_labeled_demos=8, max_rounds=1, teacher_settings=dict(lm=gpt4))
-bayesian_kwargs = dict(num_threads=4, display_progress=True, display_table=0)
 
-metric_EM = dspy.evaluate.answer_exact_match
-
-optimizer = BootstrapFewShot(metric=validate_translation, **config)
 
 compiled_state_filepath = 'compiled_optimizer_gpt4_teach_neural_chat.json'
+compiled_optimizer = None
 # if compiled_optimizer_gpt4_teach_neural_chat.json exists, load it
+
 if not compile and os.path.exists(compiled_state_filepath):
+    print(f'Loading compiled optimizer from {compiled_state_filepath}')
     compiled_optimizer = LocateTerm()
     compiled_optimizer.load(compiled_state_filepath)
 else:
+    print('Compiling optimizer...')
+    config = dict(max_bootstrapped_demos=4, max_labeled_demos=8, max_rounds=1) # teacher_settings=dict(lm=gpt4)
+    bayesian_kwargs = dict(num_threads=4, display_progress=True, display_table=0)
+
+    metric_EM = dspy.evaluate.answer_exact_match
+
+    optimizer = BootstrapFewShot(metric=validate_translation, **config)
     compiled_optimizer = optimizer.compile(LocateTerm(), trainset=examples)
     compiled_optimizer.save('compiled_optimizer_gpt4_teach_neural_chat.json')
-    evaluate = Evaluate(devset=examples, metric=validate_translation, num_threads=4, display_progress=True, display_table=0)
-    evaluate(compiled_optimizer)
-    turbo.inspect_history(n=1)
+
+evaluate = Evaluate(devset=examples, metric=validate_translation, num_threads=4, display_progress=True, display_table=0)
+# evaluate(compiled_optimizer)
+bare_neural_chat = LocateTerm()
+evaluate(bare_neural_chat)
+inc_lm.inspect_history(n=1)
 
 # Loop through the compiled optimizer until the user quits
 while True:
